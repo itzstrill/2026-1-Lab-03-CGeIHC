@@ -77,6 +77,7 @@ Texture FlechaTexture;
 Model Kitt_M;
 Model Llanta_M;
 Model Blackhawk_M;
+Model Blackhole;
 
 Skybox skybox;
 
@@ -302,6 +303,35 @@ bool loadKeyframesFromFile(const char* path);
 bool play = false;
 int playIndex = 0;
 
+////////////////////////////////
+
+/////////////// NUEVA ANIMACIÓN: BLACKHOLE //////////////////////
+
+float escalaBlackhole = 1.0f;
+float escalaBlackholeInc = 0.0f;
+float posXblackhole = 20.5f, posYblackhole = 10.0f, posZblackhole = 10.0f;
+
+#define MAX_FRAMES_BH 100
+int i_max_steps_BH = 100;
+int i_curr_steps_BH = 0;
+
+typedef struct _frameBH
+{
+	float escalaBlackhole;
+	float escalaBlackholeInc;
+} FRAME_BH;
+
+FRAME_BH KeyFrameBH[MAX_FRAMES_BH];
+int FrameIndexBH = 0;
+bool playBH = false;
+int playIndexBH = 0;
+
+// Ruta del archivo de keyframes del blackhole
+const char* KF_PATH_BH = R"(C:\Users\stril\OneDrive\Escritorio\LabGrafica\practica10\practica10\keyframes_blackhole.txt)";
+
+
+////////////////////////////////
+
 void saveFrame(void) //tecla L
 {
 
@@ -369,6 +399,64 @@ void animate(void)
 
 	}
 }
+
+void interpolationBH(void)
+{
+	KeyFrameBH[playIndexBH].escalaBlackholeInc =
+		(KeyFrameBH[playIndexBH + 1].escalaBlackhole - KeyFrameBH[playIndexBH].escalaBlackhole) / i_max_steps_BH;
+}
+
+void animateBH(void)
+{
+	if (playBH)
+	{
+		if (i_curr_steps_BH >= i_max_steps_BH)
+		{
+			playIndexBH++;
+			if (playIndexBH > FrameIndexBH - 2)
+			{
+				playIndexBH = 0;
+				playBH = false;
+			}
+			else
+			{
+				i_curr_steps_BH = 0;
+				interpolationBH();
+			}
+		}
+		else
+		{
+			escalaBlackhole += KeyFrameBH[playIndexBH].escalaBlackholeInc;
+			i_curr_steps_BH++;
+		}
+	}
+}
+
+bool loadKeyframesFromFileBH(const char* path)
+{
+	std::ifstream in(path);
+	if (!in)
+	{
+		printf("No se pudo abrir '%s'\n", path);
+		return false;
+	}
+	FrameIndexBH = 0;
+	std::string line;
+	while (std::getline(in, line))
+	{
+		if (line.empty() || line[0] == '#') continue;
+		std::istringstream ss(line);
+		float s;
+		if (ss >> s)
+		{
+			KeyFrameBH[FrameIndexBH++].escalaBlackhole = s;
+		}
+	}
+	in.close();
+	printf("Cargados %d keyframes para el Blackhole.\n", FrameIndexBH);
+	return FrameIndexBH > 1;
+}
+
 
 ///////////////* FIN KEYFRAMES*////////////////////////////
 
@@ -459,6 +547,8 @@ int main()
 	Llanta_M.LoadModel("Models/llanta_optimizada.obj");
 	Blackhawk_M = Model();
 	Blackhawk_M.LoadModel("Models/uh60.obj");
+	Blackhole = Model();
+	Blackhole.LoadModel("Models/blackhole.obj");
 
 
 
@@ -556,6 +646,8 @@ int main()
 	//Se agregan nuevos frames 
 
 	loadKeyframesFromFile(KF_PATH);  // <- prueba de lectura al arrancar
+	// Keyframes del Blackhole
+	loadKeyframesFromFileBH(KF_PATH_BH);
 
 
 
@@ -596,6 +688,8 @@ int main()
 		//-------Para Keyframes
 		inputKeyframes(mainWindow.getsKeys());
 		animate();
+		animateBH();
+
 
 		// Clear the window
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -706,6 +800,15 @@ int main()
 		//glUniform3fv(uniformColor, 1, glm::value_ptr(color));
 		glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(model));
 		Blackhawk_M.RenderModel();
+
+		// ----- Blackhole con animación de escala -----
+		model = glm::mat4(1.0);
+		model = glm::translate(model, glm::vec3(posXblackhole, posYblackhole, posZblackhole));
+		model = glm::rotate(model, 90 * toRadians, glm::vec3(0.0f, 1.0f, 0.0f));
+		model = glm::scale(model, glm::vec3(escalaBlackhole, escalaBlackhole, escalaBlackhole));
+		glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(model));
+		Blackhole.RenderModel();
+
 		
 		
 		glUseProgram(0);
@@ -786,27 +889,30 @@ void inputKeyframes(bool* keys)
 			lecturaTxt++;
 			// opcional: resetear otros gatillos si los quieres “listos”
 			// reproduciranimacion = 0; habilitaranimacion = 0;
+
+					// ---- NUEVO: guardar keyframes en archivo TXT (tecla O)
+			if (keys[GLFW_KEY_O])
+			{
+				saveKeyframesToFile(KF_PATH);
+			}
+
+
+			if (keys[GLFW_KEY_1])
+			{
+				if (ciclo < 1)
+				{
+					//printf("movAvion_x es: %f\n", movAvion_x);
+					movAvion_x += 1.0f;
+					printf("\n movAvion_x es: %f\n", movAvion_x);
+					ciclo++;
+					ciclo2 = 0;
+					printf("\n Presiona la tecla 2 para poder habilitar la variable\n");
+				}
+
 		}
 	}
 
-	// ---- NUEVO: guardar keyframes en archivo TXT (tecla O)
-	if (keys[GLFW_KEY_O])
-	{
-		saveKeyframesToFile(KF_PATH);
-	}
 
-
-	if (keys[GLFW_KEY_1])
-	{
-		if (ciclo < 1)
-		{
-			//printf("movAvion_x es: %f\n", movAvion_x);
-			movAvion_x += 1.0f;
-			printf("\n movAvion_x es: %f\n", movAvion_x);
-			ciclo++;
-			ciclo2 = 0;
-			printf("\n Presiona la tecla 2 para poder habilitar la variable\n");
-		}
 
 	}
 	if (keys[GLFW_KEY_2])
@@ -818,5 +924,24 @@ void inputKeyframes(bool* keys)
 			printf("\n Ya puedes modificar tu variable presionando la tecla 1\n");
 		}
 	}
+	// --- Reproducir animación del Blackhole (tecla B) ---
+	if (keys[GLFW_KEY_B])
+	{
+		if (!playBH && FrameIndexBH > 1)
+		{
+			interpolationBH();
+			playBH = true;
+			playIndexBH = 0;
+			i_curr_steps_BH = 0;
+			printf("Reproduciendo animación del Blackhole...\n");
+		}
+	}
+
+	// --- Recargar keyframes del Blackhole desde su TXT (tecla N) ---
+	if (keys[GLFW_KEY_N])
+	{
+		loadKeyframesFromFileBH(KF_PATH_BH);
+	}
+
 
 }
